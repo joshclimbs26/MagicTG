@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Magic Decks</title>
+</head>
+<body>
+  <h1>My Magic Deck</h1>
+
+  <textarea id="cardInput" rows="10" cols="40" placeholder="Enter one card name per line"></textarea><br><br>
+
+  <button onclick="showCards()">Show Deck</button>
+
+  <div id="cardDisplay" style="margin-top: 20px;"></div>
+
+  <script>
+    async function showCards() {
+      const input = document.getElementById('cardInput').value;
+      const cardNames = input.split('\n').map(name => name.trim()).filter(name => name !== '');
+      const display = document.getElementById('cardDisplay');
+      display.innerHTML = '';
+
+      for (const name of cardNames) {
+        try {
+          const response = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`);
+          const data = await response.json();
+
+          if (data.image_uris) {
+            const img = document.createElement('img');
+            img.src = data.image_uris.normal;
+            img.alt = name;
+            img.style.margin = '10px';
+            img.style.maxWidth = '200px';
+            display.appendChild(img);
+          } else if (data.card_faces) {
+            data.card_faces.forEach(face => {
+              const img = document.createElement('img');
+              img.src = face.image_uris.normal;
+              img.alt = face.name;
+              img.style.margin = '10px';
+              img.style.maxWidth = '200px';
+              display.appendChild(img);
+            });
+          } else {
+            display.innerHTML += `<p>Image not found for: ${name}</p>`;
+          }
+        } catch (err) {
+          display.innerHTML += `<p>Error loading card: ${name}</p>`;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
