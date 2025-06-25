@@ -3,17 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <title>My Magic Decks</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f3f3f3;
+      padding: 20px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    input, textarea {
+      width: 80%;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+    }
+
+    #cardDisplay {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    #cardDisplay img {
+      max-width: 200px;
+      margin: 10px;
+      transition: transform 0.2s;
+    }
+
+    #cardDisplay img:hover {
+      transform: scale(1.05);
+    }
+
+    select {
+      width: 82%;
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    #suggestions {
+      width: 80%;
+      margin: 0 auto;
+      text-align: left;
+      background-color: white;
+      border: 1px solid #ccc;
+      max-height: 150px;
+      overflow-y: auto;
+      position: absolute;
+      z-index: 100;
+    }
+
+    .suggestion-item {
+      padding: 8px;
+      cursor: pointer;
+    }
+
+    .suggestion-item:hover {
+      background-color: #f0f0f0;
+    }
+  </style>
 </head>
 <body>
-  <h1>My Magic Deck</h1>
+  <h1>My Magic Decks</h1>
 
-  <textarea id="cardInput" rows="10" cols="40" placeholder="Enter one card name per line"></textarea><br><br>
+  <!-- Search for cards -->
+  <input type="text" id="cardSearch" placeholder="Search for a card..." oninput="searchCards()">
+  <div id="suggestions"></div>
+
+  <!-- Deck name and input -->
+  <input type="text" id="deckName" placeholder="Enter deck name"><br>
+  <textarea id="cardInput" placeholder="Enter one card name per line"></textarea><br>
 
   <button onclick="showCards()">Show Deck</button>
+  <button onclick="saveDeck()">Save Deck</button>
+  <button onclick="deleteDeck()">Delete Deck</button>
 
-  <div id="cardDisplay" style="margin-top: 20px;"></div>
+  <h3>Load a Saved Deck</h3>
+  <select id="savedDecks" onchange="loadDeck()">
+    <option value="">-- Select a deck --</option>
+  </select>
+
+  <div id="cardDisplay"></div>
 
   <script>
+    function updateDeckList() {
+      const select = document.getElementById('savedDecks');
+      select.innerHTML = '<option value="">-- Select a deck --</option>';
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        select.innerHTML += `<option value="${key}">${key}</option>`;
+      }
+    }
+
+    function saveDeck() {
+      const name = document.getElementById('deckName').value.trim();
+      const cards = document.getElementById('cardInput').value;
+      if (!name) {
+        alert('Please enter a deck name.');
+        return;
+      }
+      localStorage.setItem(name, cards);
+      updateDeckList();
+      alert('Deck saved!');
+    }
+
+    function loadDeck() {
+      const selected = document.getElementById('savedDecks').value;
+      if (!selected) return;
+      const cards = localStorage.getItem(selected);
+      document.getElementById('deckName').value = selected;
+      document.getElementById('cardInput').value = cards;
+      showCards();
+    }
+
+    function deleteDeck() {
+      const name = document.getElementById('deckName').value.trim();
+      if (!name || !localStorage.getItem(name)) {
+        alert('Deck not found.');
+        return;
+      }
+      localStorage.removeItem(name);
+      updateDeckList();
+      alert('Deck deleted.');
+    }
+
     async function showCards() {
       const input = document.getElementById('cardInput').value;
       const cardNames = input.split('\n').map(name => name.trim()).filter(name => name !== '');
@@ -29,16 +154,12 @@
             const img = document.createElement('img');
             img.src = data.image_uris.normal;
             img.alt = name;
-            img.style.margin = '10px';
-            img.style.maxWidth = '200px';
             display.appendChild(img);
           } else if (data.card_faces) {
             data.card_faces.forEach(face => {
               const img = document.createElement('img');
               img.src = face.image_uris.normal;
               img.alt = face.name;
-              img.style.margin = '10px';
-              img.style.maxWidth = '200px';
               display.appendChild(img);
             });
           } else {
@@ -49,6 +170,7 @@
         }
       }
     }
-  </script>
-</body>
-</html>
+
+    async function searchCards() {
+      const query = document.getElementById('cardSearch').value.trim();
+      const suggestionsDiv = document.getElementById('suggestions');
