@@ -1,176 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>My Magic Decks</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f3f3f3;
-      padding: 20px;
-      text-align: center;
-    }
+async function groupCardSearch() {
+  const input = document.getElementById('groupCardInput').value;
+  const cardNames = input.split('\n').map(name => name.trim()).filter(name => name !== '');
+  const display = document.getElementById('cardDisplay');
+  display.innerHTML = '';
 
-    h1 {
-      color: #333;
-    }
+  if (cardNames.length === 0) {
+    alert('Please enter at least one card name.');
+    return;
+  }
 
-    input, textarea {
-      width: 80%;
-      padding: 10px;
-      font-size: 16px;
-      margin-bottom: 10px;
-    }
+  // Break into batches of 75 (Scryfall limit)
+  const batchSize = 75;
+  for (let i = 0; i < cardNames.length; i += batchSize) {
+    const batch = cardNames.slice(i, i + batchSize);
+    const identifiers = batch.map(name => ({ name }));
 
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      margin: 5px;
-      cursor: pointer;
-    }
+    try {
+      const response = await fetch('https://api.scryfall.com/cards/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers })
+      });
 
-    #cardDisplay {
-      margin-top: 20px;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    #cardDisplay img {
-      max-width: 200px;
-      margin: 10px;
-      transition: transform 0.2s;
-    }
-
-    #cardDisplay img:hover {
-      transform: scale(1.05);
-    }
-
-    select {
-      width: 82%;
-      padding: 10px;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-
-    #suggestions {
-      width: 80%;
-      margin: 0 auto;
-      text-align: left;
-      background-color: white;
-      border: 1px solid #ccc;
-      max-height: 150px;
-      overflow-y: auto;
-      position: absolute;
-      z-index: 100;
-    }
-
-    .suggestion-item {
-      padding: 8px;
-      cursor: pointer;
-    }
-
-    .suggestion-item:hover {
-      background-color: #f0f0f0;
-    }
-  </style>
-</head>
-<body>
-  <h1>My Magic Decks</h1>
-
-  <!-- Search for cards -->
-  <input type="text" id="cardSearch" placeholder="Search for a card..." oninput="searchCards()">
-  <div id="suggestions"></div>
-
-  <!-- Deck name and input -->
-  <input type="text" id="deckName" placeholder="Enter deck name"><br>
-  <textarea id="cardInput" placeholder="Enter one card name per line"></textarea><br>
-
-  <button onclick="showCards()">Show Deck</button>
-  <button onclick="saveDeck()">Save Deck</button>
-  <button onclick="deleteDeck()">Delete Deck</button>
-
-  <h3>Load a Saved Deck</h3>
-  <select id="savedDecks" onchange="loadDeck()">
-    <option value="">-- Select a deck --</option>
-  </select>
-
-  <div id="cardDisplay"></div>
-
-  <script>
-    function updateDeckList() {
-      const select = document.getElementById('savedDecks');
-      select.innerHTML = '<option value="">-- Select a deck --</option>';
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        select.innerHTML += `<option value="${key}">${key}</option>`;
-      }
-    }
-
-    function saveDeck() {
-      const name = document.getElementById('deckName').value.trim();
-      const cards = document.getElementById('cardInput').value;
-      if (!name) {
-        alert('Please enter a deck name.');
-        return;
-      }
-      localStorage.setItem(name, cards);
-      updateDeckList();
-      alert('Deck saved!');
-    }
-
-    function loadDeck() {
-      const selected = document.getElementById('savedDecks').value;
-      if (!selected) return;
-      const cards = localStorage.getItem(selected);
-      document.getElementById('deckName').value = selected;
-      document.getElementById('cardInput').value = cards;
-      showCards();
-    }
-
-    function deleteDeck() {
-      const name = document.getElementById('deckName').value.trim();
-      if (!name || !localStorage.getItem(name)) {
-        alert('Deck not found.');
-        return;
-      }
-      localStorage.removeItem(name);
-      updateDeckList();
-      alert('Deck deleted.');
-    }
-
-    async function showCards() {
-      const input = document.getElementById('cardInput').value;
-      const cardNames = input.split('\n').map(name => name.trim()).filter(name => name !== '');
-      const display = document.getElementById('cardDisplay');
-      display.innerHTML = '';
-
-      for (const name of cardNames) {
-        try {
-          const response = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`);
-          const data = await response.json();
-
-          if (data.image_uris) {
+      const data = await response.json();
+      if (data.data) {
+        data.data.forEach(card => {
+          if (card.image_uris) {
             const img = document.createElement('img');
-            img.src = data.image_uris.normal;
-            img.alt = name;
+            img.src = card.image_uris.normal;
+            img.alt = card.name;
             display.appendChild(img);
-          } else if (data.card_faces) {
-            data.card_faces.forEach(face => {
+          } else if (card.card_faces) {
+            card.card_faces.forEach(face => {
               const img = document.createElement('img');
               img.src = face.image_uris.normal;
               img.alt = face.name;
               display.appendChild(img);
             });
-          } else {
-            display.innerHTML += `<p>Image not found for: ${name}</p>`;
           }
-        } catch (err) {
-          display.innerHTML += `<p>Error loading card: ${name}</p>`;
-        }
+        });
       }
-    }
 
-    async function searchCards() {
-      const query = document.getElementById('cardSearch').value.trim();
-      const suggestionsDiv = document.getElementById('suggestions');
+      // Show any cards that were not found
+      if (data.not_found && data.not_found.length > 0) {
+        data.not_found.forEach(missing => {
+          const p = document.createElement('p');
+          p.textContent = `Card not found: ${missing.name}`;
+          display.appendChild(p);
+        });
+      }
+
+    } catch (err) {
+      const p = document.createElement('p');
+      p.textContent = 'Error loading cards.';
+      display.appendChild(p);
+    }
+  }
+}
